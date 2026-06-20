@@ -23,4 +23,10 @@ packages/web/.next/
 # Obsidian temp files
 vault/Untitled*.base
 
+# bee runtime state (the local SQLite dedup ledger + scaffold output)
+.bee/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
 .env

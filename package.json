@@ -1,0 +1,46 @@
+{
+  "name": "bee",
+  "version": "0.1.0",
+  "description": "bee — the Energy fleet's background-jobs/queues/durable-workflows employee. At-least-once + idempotent + DB-unique-constraint dedupe.",
+  "type": "module",
+  "bin": {
+    "bee": "./bin/bee.js"
+  },
+  "main": "./src/backend/index.js",
+  "files": [
+    "bin/",
+    "src/",
+    "brain/",
+    "skills/",
+    "AGENTS.md",
+    "llms.txt",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "bee": "node ./bin/bee.js",
+    "acceptance": "node ./eval/acceptance.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "keywords": [
+    "background-jobs",
+    "queue",
+    "bullmq",
+    "idempotency",
+    "webhooks",
+    "durable-execution",
+    "claude",
+    "agent",
+    "energy"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "bullmq": "5.78.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "typescript": "5.9.3"
+  }
+}

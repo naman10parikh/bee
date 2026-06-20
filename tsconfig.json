@@ -1,0 +1,19 @@
+{
+  "//": "bee ships ESM .js (the verify lines invoke `node bin/bee.js` and `node src/...` directly — a dist/ build would break them). tsc here is a TYPECHECK gate over the JSDoc-annotated .js, noEmit so it never produces a dist/. `npm run build` == typecheck.",
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2023"],
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "types": ["node"],
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["bin/**/*.js", "src/**/*.js", "eval/**/*.mjs"],
+  "exclude": ["node_modules", "src/backend/scaffold/templates", "src/backend/webhook/templates", "eval/fixtures"]
+}

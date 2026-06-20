@@ -69,7 +69,7 @@ new Worker(
     const eventId = String(job.opts.jobId ?? job.data.id);
     // const won = await db.claim(eventId);   // INSERT … ON CONFLICT DO NOTHING
     // if (!won) return { deduped: true };
-    // ... handle job.data.type (payment_intent.succeeded, …) exactly once ...
+    // ... handle job.data.type (payment_intent.succeeded, …) — the effect runs once ...
     return { eventId, applied: true };
   },
   { connection: { host: process.env.REDIS_HOST || "localhost", port: Number(process.env.REDIS_PORT || 6379), maxRetriesPerRequest: null } },
@@ -87,8 +87,8 @@ The RIGHT inbound path: **verify sig on raw bytes → dedup on event.id → 202 
 - Dedup on \`event.id\` with TTL ≥ **3 days** (Stripe's live retry window, O-8/P-X5).
 - Return **202 before** any work (P-X7) — the worker does the effect idempotently (O-2).
 
-Set \`STRIPE_WEBHOOK_SECRET\` (verify-only, never logged). This does exactly-once
-*effect* on at-least-once delivery.
+Set \`STRIPE_WEBHOOK_SECRET\` (verify-only, never logged). This achieves an
+exactly-once *effect* on at-least-once delivery.
 `,
     },
   ];

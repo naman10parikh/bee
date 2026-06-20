@@ -1,0 +1,10 @@
+{
+  "name": "broken-jobs-fixture",
+  "private": true,
+  "description": "SEEDED-BROKEN fixture for bee audit (do not fix — each bug is intentional).",
+  "type": "module",
+  "dependencies": {
+    "bullmq": "^5.76.8",
+    "@temporalio/client": "~1.17.0"
+  }
+}

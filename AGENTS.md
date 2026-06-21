@@ -1,86 +1,98 @@
-# AGENTS.md — Wiki Schema & Conventions
+# AGENTS.md — bee (background-jobs / queues / durable-workflows employee)
 
-> This file tells the LLM how your wiki is structured.
-> You and the LLM co-evolve this over time.
+> Instructions for a coding agent operating **bee**. bee is a *tool-employee* in the Energy fleet — a senior
+> distributed-systems / jobs engineer you call to scaffold, wire, audit, and reason about durable background work.
+> Its surfaces are **CLI + MCP** (for you) and a read-mostly **cockpit** (for the chairman). Reachability is N/A.
+> Powered by Energy.
 
-## Domain: personal
+## What bee does
 
-## Created: 2026-04-07
+bee scaffolds and audits **durable-jobs layers** — queues, retries, idempotency, delivery semantics, durable
+execution (Inngest / Trigger.dev / Temporal), fan-out/fan-in, DLQs, webhook delivery, durable scheduling — and
+reasons about the **2026 agent-era jobs problem**: every multi-step agent run IS a durable workflow. bee owns
+THE ONE INVARIANT and its 30+ failure-mode corollaries — the fleet's authority on *"make this side effect safe
+to run twice."*
 
-## Directory Structure
+## THE ONE INVARIANT (the spine — bee upholds this everywhere)
 
-```
-raw/              # Immutable source documents (never modified by LLM)
-wiki/             # LLM-generated markdown (the knowledge base)
-  index.md        # Content catalog — every page listed with summary
-  log.md          # Chronological record of operations
-  sources/        # One summary page per ingested source
-  entities/       # Pages for people, organizations, tools, etc.
-  concepts/       # Pages for ideas, frameworks, patterns, etc.
-  syntheses/      # Cross-cutting analyses, comparisons, explorations
-AGENTS.md         # This file — wiki schema and conventions
-config.yaml       # Configuration (LLM provider, sources, schedules)
-```
+**At-least-once transport + idempotent consumer + dedupe store (TTL = retry window). NEVER chase true
+exactly-once *delivery*.** Every side effect carries a **deterministic idempotency key enforced by a DB unique
+constraint**. On any ambiguous timeout → **query state, never blind-retry.** This is the load-bearing wall behind
+every duplicate-charge / duplicate-email / duplicate-deploy disaster in the corpus.
 
-## Page Conventions
+## CLI tool list (`bee <command>`)
 
-Every wiki page has YAML frontmatter:
+Every command is non-interactive and takes `--json` on data commands. `bee --help` lists the full tree.
 
-```yaml
+| Command | What it does |
+| --- | --- |
+| `bee enqueue --queue <q> --data <json> [--id <key>] [--json]` | Enqueue a job (BullMQ-on-Redis); re-enqueuing the same `--id` is duplicate-safe (`deduped:true`). |
+| `bee worker --queue <q> [--concurrency <n>] [--json]` | Run an idempotent worker with retry + backoff(jitter) + `maxStalledCount` + a redrive-able DLQ; each effect runs once (DB unique constraint). |
+| `bee scaffold [--provider bullmq\|inngest\|qstash\|temporal] [--out <dir>]` | Stand up a law-compliant jobs layer from a reference baseline (deps pinned exact; idempotency + retry-jitter + DLQ baked in). |
+| `bee wire-webhook --provider <stripe\|shopify\|svix> [--out <dir>]` | Generate the right inbound webhook→queue path: verify sig on raw bytes → dedup on provider event ID → **return 202** → idempotent async worker. |
+| `bee audit <dir> [--json]` | Run the 30+ pitfall audit (`brain/KNOWN-PITFALLS.md`) over a jobs layer; emits findings keyed by P-ID. |
+| `bee pick-tool [--profile <serverless\|cloudflare\|aws\|http-only\|scale\|complex\|postgres>] [--json]` | The decision oracle: recommends a tool **with the named falls-short** + the reversibility cost (Temporal = one-way door). |
+| `bee check [--json]` | Version-drift oracle: `npm view` vs `brain/TOOL-MATRIX.md` pins; flags the BullMQ stall-loop floor (`<5.78.1`). |
+| `bee token-bucket --key <k> --limit <rpm> [--workers <n>]` | The frontier primitive: a shared Redis token-bucket all workers consult before a rate-limited call. **Frontier — documented as unsolved-in-vendors, never "solved."** |
+| `bee brain <query>` | BM25 search over `brain/` — returns ranked pitfalls/scenarios/opinions. |
+| `bee explain <P-id\|S-id\|O-id>` | Print the pitfall/scenario/opinion by ID with detection + fix + source. |
+| `bee eval [--level 1\|2\|3]` | Run the eval pyramid (golden tasks from `brain/BATTLE-TESTED-SCENARIOS.md`). |
+
+## MCP tool list (bee's own server)
+
+`scaffold_jobs` · `enqueue` · `worker` · `audit_jobs` · `wire_webhook` · `pick_tool` · `check_versions` ·
+`explain` · `search_brain`. (Wraps the CLI; stdio local + a documented Streamable-HTTP path.)
+
+## The boundary (hard — what bee does NOT own)
+
+bee owns **jobs / queues / durable workflows + worker-side flow control**; **cron is a feature, not the whole
+lane.** It does NOT own:
+
+- **HTTP-edge rate-limiting / response-caching / edge KV → echo** (Wave 2). bee owns only *worker-side* flow
+  control (the token-bucket consulted *before* a side effect) and may *consume* echo's Redis — never a second
+  cache store.
+- **Product-billing logic → penny** · **earning-loop strategy → helios** (bee owns the durable rail both run ON).
+- **Frontend → pixel** · **mobile → pebble** · **DB schema/migrations/RLS → acorn** (bee *uses* a unique
+  constraint, does not design schemas) · **auth → badge** · **deploy/CI → rocket** (bee runs on it, honors
+  one-push-at-a-time).
+
+## What NOT to do (the refusals — an answer is slop if it trips these)
+
+- ❌ No bare **"exactly-once"** — the missing word is *effect* (O-1). bee `audit` finds zero of these on its own output.
+- ❌ No **inline webhook work** — ack fast (202), process async (O-5).
+- ❌ No **blocking `await` / `setTimeout` inside a step** — use the durable sleep primitive (O-16).
+- ❌ No **durable-exec as a universal default** — check if a plain queue suffices first (O-14).
+- ❌ No **floating `^` versions** on queue / durable-exec libs — pin exact; BullMQ ships multiple patches/week (O-17 / P-B1).
+- ❌ No **side effect outside an Inngest `step.run()`** — it re-runs on every invocation (P-I1).
+- ❌ No **polling for an event-shaped wait** — use the Monitor tool; cron is for clocks (O-21).
+- ❌ No **bare exponential backoff** — jitter by error type (Full for transient, Equal for throttle) (O-9 / P-X6).
+- ❌ No **dedup TTL shorter than the provider's longest retry window** (O-8 / P-X5).
+
+## Default stack (one line)
+
+**BullMQ ≥5.78.1 on Redis** (acceptance default, pinned exact) · **Inngest 4.6** (serverless) ·
+**Temporal 1.18.1** (complex — one-way door) · **QStash** (pure-HTTP) · **Svix / Hookdeck** (webhooks) ·
+**Postgres/SQLite UNIQUE constraint** (dedup) · **GitHub Actions `schedule`** (durable scheduling) ·
+**Anthropic Monitor tool** (event waits). Default is wired; alts are documented, not wired (`brain/TOOL-MATRIX.md`).
+
+## The brain (bee's expertise — query it, don't guess)
+
+The six Wave-R artifacts under `brain/` ARE bee's expertise. Query with `bee brain "<q>"`; explain an ID with
+`bee explain <id>`. Index: `brain/MOC - bee.md`.
+
+- `brain/EXPERTISE-MAP.md` — the 12 JTBD, THE ONE INVARIANT in full, the decision tree, the "where it's WRONG" matrix.
+- `brain/OPINIONS.md` — the house stances O-1…O-28 (the anti-slop layer; disagreeing requires new evidence).
+- `brain/KNOWN-PITFALLS.md` — 30+ version-specific gotchas P-X1…P-Q4 (each with a concrete Detect signal + Avoid).
+- `brain/BATTLE-TESTED-SCENARIOS.md` — 20 scenarios S-1…S-20, each with a built-in binary VERIFY (the eval source).
+- `brain/TOOL-MATRIX.md` — default-vs-alts per decision, the pins, the agent-access surface, the secrets manifest.
+- `brain/GAPS-AND-DISPUTES.md` — where the field genuinely splits + the open frontier (G-1 shared-LLM-key token-bucket). "Measure, don't assert."
+
+## Browser / computer-use
+
+**N/A** — bee is a backend/jobs employee, not a web-operator. The "if it touches the web, wire a browser tool"
+clause does not bind bee.
+
 ---
-title: "Page Title"
-type: source | entity | concept | synthesis | index | log
-created: "YYYY-MM-DD"
-updated: "YYYY-MM-DD"
-tags: [tag1, tag2]
-sources: ["raw/filename.md"] # Which raw sources inform this page
-related: ["[[Other Page]]"] # Explicit cross-references
-summary: "One-line summary" # Used in index.md
----
-```
 
-## Wikilinks
-
-Use `[[Page Title]]` to link between pages. The LLM maintains these links.
-Orphan pages (no inbound links) are flagged by `wikimem lint`.
-
-## Operations
-
-### Ingest
-
-When a new source is added to raw/:
-
-1. Read the source completely
-2. Create/update a source summary page in wiki/sources/
-3. Identify entities mentioned → create/update entity pages
-4. Identify concepts discussed → create/update concept pages
-5. Update index.md with new/modified pages
-6. Append to log.md
-
-### Query
-
-When answering a question:
-
-1. Read index.md to find relevant pages
-2. Read the relevant pages
-3. Synthesize an answer with [[wikilink]] citations
-4. Optionally file the answer as a synthesis page
-
-### Lint
-
-Periodically check for:
-
-- Contradictions between pages
-- Stale claims superseded by newer sources
-- Orphan pages with no inbound links
-- Missing cross-references
-- Important concepts mentioned but lacking their own page
-- Data gaps that could be filled
-
-## Quality Standards
-
-- Every claim should cite its source via wikilink
-- Summaries should be concise (1-3 sentences in frontmatter)
-- Pages should be interconnected (no isolated islands)
-- Prefer updating existing pages over creating new ones
-- Flag contradictions explicitly rather than silently overwriting
+*Operating rules: `CLAUDE.md` + `.claude/rules/`. Identity: `identity/SOUL.md` + `identity/BRAND.md`.
+Bootstrap memory: `MEMORY.md`. The grading authority for this harness is `HARNESS-OVERRIDES.md`.*

@@ -1,0 +1,93 @@
+name: acceptance
+
+# THE merge gate (PLAN §5, E5): `bee enqueue` + `bee worker` process a job
+# IDEMPOTENTLY with retry + backoff and a DLQ path, duplicate-safe under at-least-once
+# — THE ONE INVARIANT made executable, run against an EPHEMERAL Redis (D15
+# local-first / $0 / no-creds). Red-blocking: a failing gate blocks the merge.
+#
+# Convention note: the repo ships ESM .js + a pnpm-lock.yaml (tsconfig is noEmit —
+# `pnpm build` == the tsc typecheck gate). PLAN §5's literal sketch used
+# `npm ci`/node-24, but `npm ci` requires a package-lock.json this repo does not have,
+# so we mirror the WORKING repo CI convention (pnpm + node 22, same as ci.yml/rsi.yml)
+# — otherwise the job would fail on install. The acceptance body is identical.
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  accept:
+    runs-on: ubuntu-latest
+    services:
+      # Ephemeral Redis, $0, no account — the local-first merge gate (D15). The E2B
+      # live-boot variant is the ADDITIVE, secret-gated job below — NOT the blocker.
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      REDIS_URL: redis://localhost:6379
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile || pnpm install
+
+      - name: Build (tsc checkJs gate)
+        run: pnpm build
+
+      - name: Acceptance test (THE ONE INVARIANT — enqueue×2 dup + poison; effect=1, jittered retry, DLQ; chaos kill-mid-run + concurrent-dup; pass^k)
+        run: node eval/acceptance.mjs
+
+      - name: Eval pyramid L1 + L2 (the CI-blocking golden set, hermetic)
+        run: |
+          node bin/bee.js eval --level 1
+          node bin/bee.js eval --level 2
+
+  # ADDITIVE, secret-gated, NON-BLOCKING: the E2B Firecracker live-boot variant
+  # (PLAN §11, E4). Absent E2B_API_KEY this job is skipped — the `accept` job above
+  # still gates the merge via the ephemeral-Redis path (D15/Q10). It never blocks.
+  sandbox-boot:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' }}
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile || pnpm install
+
+      - name: E2B live-boot acceptance (only if the key is set — additive, never blocks)
+        env:
+          E2B_API_KEY: ${{ secrets.E2B_API_KEY }}
+        run: |
+          if [ -z "$E2B_API_KEY" ]; then
+            echo "E2B_API_KEY not set in repo secrets — skipping the live-boot variant."
+            echo "The ephemeral-Redis acceptance job is the merge gate (D15). See CHAIRMAN-CHECKLIST BEE-3."
+            exit 0
+          fi
+          node src/backend/sandbox/boot.mjs

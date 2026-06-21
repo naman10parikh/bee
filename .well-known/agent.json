@@ -1,0 +1,67 @@
+{
+  "protocolVersion": "1.0",
+  "name": "bee",
+  "description": "The Energy fleet's background-jobs / queues / durable-workflows domain-expert employee. Scaffolds and audits durable-jobs layers — idempotency + retry-with-jitter + DLQ baked in, BullMQ-on-Redis by default — and reasons about the 2026 agent-era jobs problem (every multi-step agent run IS a durable workflow). Owns THE ONE INVARIANT: at-least-once transport + idempotent consumer + a DB unique-constraint dedupe; on ambiguous timeout, query state, never blind-retry. Refuses bare 'exactly-once'. Owns jobs/queues/workflows + worker-side flow control only; HTTP-edge rate-limit/cache is echo's seam. Powered by Energy.",
+  "version": "0.1.0",
+  "provider": {
+    "organization": "Energy",
+    "url": "https://github.com/naman10parikh/bee"
+  },
+  "documentationUrl": "https://github.com/naman10parikh/bee/blob/main/AGENTS.md",
+  "endpoint": "stdio:node ./src/backend/mcp/server.js",
+  "transports": [
+    { "type": "mcp", "command": "node", "args": ["./src/backend/mcp/server.js"], "transport": "stdio", "note": "the bee MCP server — default transport (a CLI-wrapper; each tool shells out to the bee CLI with --json)" },
+    { "type": "http", "url": "http://localhost:7777", "note": "documented dual-mode: a hosted Streamable-HTTP variant serving the same 9 tools (see src/backend/mcp/STREAMABLE-HTTP.md)" }
+  ],
+  "capabilities": ["enqueue", "worker", "scaffold", "wire-webhook", "audit", "pick-tool", "check", "brain", "explain"],
+  "plannedCapabilities": ["token-bucket"],
+  "defaultInputModes": ["text/plain", "application/json"],
+  "defaultOutputModes": ["text/plain", "application/json"],
+  "skills": [
+    {
+      "id": "enqueue_and_worker",
+      "name": "Idempotent enqueue + worker (THE acceptance test)",
+      "description": "THE acceptance test: bee enqueue + bee worker process a job idempotently with retry + jittered backoff and a DLQ path, duplicate-safe under at-least-once (re-enqueuing the same idempotency key yields effect count = 1 via a DB unique constraint; poison jobs dead-letter). Maps to `bee enqueue` + `bee worker`.",
+      "tags": ["jobs", "queue", "bullmq", "idempotency", "retry", "dlq"],
+      "examples": [
+        "Enqueue this charge job duplicate-safely and process it exactly-once-in-effect.",
+        "Run an idempotent worker with retry, jitter, and a dead-letter path."
+      ]
+    },
+    {
+      "id": "scaffold_jobs",
+      "name": "Scaffold a law-compliant jobs layer",
+      "description": "Stand up a durable-jobs layer from a reference baseline (BullMQ default = a bull-board-wired worker; Inngest = framework-nextjs-app-router shape), deps pinned EXACT (BullMQ >=5.78.1, never ^5), idempotency + retry-jitter + DLQ + BullMQ Job Schedulers (not legacy repeat) baked in. Maps to `bee scaffold`.",
+      "tags": ["jobs", "scaffold", "bullmq", "inngest"],
+      "examples": ["Scaffold a new BullMQ jobs layer.", "Stand up a durable-jobs layer I can build on, with idempotency and a DLQ baked in."]
+    },
+    {
+      "id": "wire_webhook",
+      "name": "Wire an inbound webhook→queue path",
+      "description": "Generate the RIGHT inbound webhook→queue path: verify sig on raw bytes → dedup on provider event ID (TTL >= provider retry window) → persist raw → return 202 → idempotent async worker. Inline work = duplicates by construction (S-4, O-5/O-6/O-8). Maps to `bee wire-webhook`.",
+      "tags": ["webhook", "stripe", "shopify", "svix", "202", "idempotency"],
+      "examples": ["Wire a Stripe webhook the right way so it doesn't double-process.", "Generate a webhook handler that acks fast and processes async."]
+    },
+    {
+      "id": "audit_jobs",
+      "name": "Audit a jobs layer for the 30+ pitfalls",
+      "description": "Run the pitfall audit over a jobs/webhook layer: at-least-once-as-exactly-once (P-X1), dedup-TTL<retry-window (P-X5), bare-exponential-no-jitter (P-X6), inline webhook (P-X7), unbounded fan-out (P-X8), side-effect-outside-step (P-I1), floating ^5 (P-B1), maxStalledCount-exempts-schedulers (P-B3). Findings keyed by P-ID. Maps to `bee audit`.",
+      "tags": ["jobs", "audit", "anti-pattern", "idempotency"],
+      "examples": ["Audit this jobs layer for the charge-twice class.", "Check my BullMQ/Inngest code for the known pitfalls."]
+    },
+    {
+      "id": "pick_tool",
+      "name": "Pick the right jobs tool (and name where it's WRONG)",
+      "description": "The decision oracle: walks the JTBD-11 tree -> recommends a tool WITH the named falls-short (O-28) + the reversibility cost (Temporal = one-way door, O-13). Profiles: serverless/cloudflare/aws/http-only/scale/complex/postgres. Maps to `bee pick-tool`.",
+      "tags": ["jobs", "decision", "bullmq", "inngest", "temporal"],
+      "examples": ["Should we use Temporal or BullMQ for mostly-short jobs?", "Which queue for a serverless product?"]
+    },
+    {
+      "id": "search_brain",
+      "name": "Search / explain the jobs brain",
+      "description": "BM25 ranked search over bee's expertise brain (pitfalls P-, scenarios S-, opinions O-, jobs JTBD-), or explain any ID with its detection + fix + source. Maps to `bee brain` / `bee explain`.",
+      "tags": ["jobs", "knowledge", "search"],
+      "examples": ["What does bee think about dedup-TTL sizing?", "Explain P-X5.", "How long should a Stripe dedup window be?"]
+    }
+  ]
+}

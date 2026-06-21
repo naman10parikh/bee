@@ -1,0 +1,106 @@
+# bee
+
+> The Energy fleet's **background-jobs / queues / durable-workflows** domain-expert employee — a senior
+> distributed-systems engineer that scaffolds and audits durable-jobs layers, reads the asterisk on every
+> "exactly-once" claim, and makes the slow, risky, must-not-run-twice work happen *after* the request returns.
+> A tool-employee operated by coding agents (CLI + MCP) and watched by the chairman (the local cockpit).
+> Reachability is N/A. Powered by Energy.
+
+This is the agent-readable map of bee's docs and surfaces. **Read `AGENTS.md` first** for how to invoke every
+tool, the hard boundary, and the NOT-list. Paths are repo-relative to `~/bee`.
+
+## THE ONE INVARIANT (the spine — read this before anything else)
+
+**At-least-once transport + idempotent consumer + a dedupe store (TTL = retry window). NEVER chase true
+exactly-once *delivery*.** Every side effect carries a **deterministic idempotency key enforced by a DB unique
+constraint**. On any ambiguous timeout → **query state, never blind-retry.** This is the load-bearing wall behind
+every duplicate-charge / duplicate-email / duplicate-deploy disaster in the corpus.
+
+**One-line default stack:** BullMQ ≥5.78.1 on Redis (acceptance default, pinned exact) · Inngest 4.6 (serverless) ·
+Temporal 1.18.1 (complex — one-way door) · QStash (pure-HTTP) · Svix / Hookdeck (webhooks) · Postgres/SQLite
+UNIQUE constraint (dedup) · GitHub Actions `schedule` (durable scheduling) · Anthropic Monitor tool (event waits).
+Default is wired; alts are documented, not wired (`brain/TOOL-MATRIX.md`).
+
+## Start here
+
+- [AGENTS.md](./AGENTS.md): What bee does, how to invoke every CLI/MCP tool, the echo boundary, the NOT-list.
+- [CLAUDE.md](./CLAUDE.md): Claude Code operating doc for this repo (the voice + THE ONE INVARIANT + cluster order).
+- [README.md](./README.md): the human-facing one-paragraph intro + the CLI quick-reference.
+- [QUICKSTART.md](./QUICKSTART.md): where everything lives.
+
+## Identity
+
+- [identity/SOUL.md](./identity/SOUL.md): Who bee is — Identity → Personality → Boundaries.
+- [identity/BRAND.md](./identity/BRAND.md): name rationale ("bee = the tireless hive worker that runs a queue"), tagline, design tokens.
+- [.well-known/agent.json](./.well-known/agent.json): A2A agent card (name / description / endpoint / capabilities / plannedCapabilities).
+
+## Tools — the `bee` CLI (Bash-invokable, `--json` on data commands)
+
+- `bee enqueue --queue <q> --data <json> [--id <key>] [--json]` — **THE acceptance test (half 1):** enqueue duplicate-safely; re-enqueuing the same `--id` returns `deduped:true`.
+- `bee worker --queue <q> [--concurrency <n>] [--drain] [--json]` — **THE acceptance test (half 2):** idempotent worker, retry + jittered backoff + `maxStalledCount` + a redrive-able DLQ; each effect runs once.
+- `bee scaffold [--provider bullmq|inngest|qstash|temporal] [--out <dir>]` — a law-compliant jobs layer from a reference baseline (deps pinned exact; idempotency + retry-jitter + DLQ baked in).
+- `bee wire-webhook --provider <stripe|shopify|svix> [--out <dir>]` — the right inbound webhook→queue path: verify sig on raw bytes → dedup on provider event ID → **return 202** → idempotent async worker.
+- `bee audit <dir> [--json]` — the 30+ pitfall audit over a jobs layer (findings keyed by P-ID; exit 2 on high-severity).
+- `bee pick-tool [--profile serverless|cloudflare|aws|http-only|scale|complex|postgres] [--json]` — the decision oracle: recommends a tool **with the named falls-short** + the reversibility cost.
+- `bee check [--below-floor <v>] [--offline] [--json]` — version-drift oracle (stale pins + the BullMQ stall-loop floor `<5.78.1`). Offline-safe.
+- `bee token-bucket --key <k> --limit <rpm> [--workers <n>]` — the **frontier** primitive: a shared Redis token-bucket all workers consult before a rate-limited call. **Frontier — documented as unsolved-in-vendors, never "solved."**
+- `bee brain <query>` — BM25 ranked search over `brain/` (the Memory layer).
+- `bee explain <P-id|S-id|O-id>` — print a pitfall/scenario/opinion by ID with detection + fix.
+- `bee eval [--level 1|2|3]` — run the eval pyramid (G1–G14).
+
+## MCP server (bee's OWN — 9 tools)
+
+- [.mcp.json](./.mcp.json): the `bee` server entry (env-ref keys only — no literal secrets).
+- **Endpoint / transport:** default **stdio** — `node ./src/backend/mcp/server.js`. Each tool shells out to the
+  `bee` CLI with `--json`, so the tools never drift from the gated CLI. A hosted **Streamable-HTTP** variant is the
+  documented dual-mode (same tool list over HTTP) — see [src/backend/mcp/STREAMABLE-HTTP.md](./src/backend/mcp/STREAMABLE-HTTP.md).
+- **`tools/list`** returns: `scaffold_jobs` (→`bee scaffold`), `enqueue` (→`bee enqueue`), `worker`
+  (→`bee worker --drain`), `audit_jobs` (→`bee audit`), `wire_webhook` (→`bee wire-webhook`), `pick_tool`
+  (→`bee pick-tool`), `check_versions` (→`bee check`), `explain` (→`bee explain`), `search_brain` (→`bee brain`).
+
+## Skills (`skills/*/SKILL.md` — each calls a real `bee` verb)
+
+- [idempotent-side-effects](./skills/idempotent-side-effects/SKILL.md): O-1/O-2/O-6/O-7/O-8 + P-X1/P-X4/P-X5 + S-2/S-3/S-9 — at-least-once + a DB unique constraint, the recovery-point pattern, two-layer keying, dedup-TTL ≥ retry window.
+- [retry-and-backoff](./skills/retry-and-backoff/SKILL.md): O-9/O-10 + P-X6/P-B3/P-B4 + S-1 — Full-Jitter (transient) / Equal-Jitter (throttle), always cap, "a cap with exemptions is not a cap."
+- [webhook-to-queue](./skills/webhook-to-queue/SKILL.md): O-5/O-6/O-26 + P-X7/P-X5 + S-4 — verify-sig-on-raw → dedup-on-event-id → 202 → idempotent worker. Inline work = duplicates by construction.
+- [durable-exec-safely](./skills/durable-exec-safely/SKILL.md): O-11/O-13/O-16/O-22 + P-I1/P-TE1/P-X2 + S-5/S-8 — wrap every side effect in a step, durable-sleep-not-blocking-await, treat every agent run as a durable workflow.
+- [pick-the-jobs-tool](./skills/pick-the-jobs-tool/SKILL.md): O-11/O-12/O-13/O-14/O-28 + JTBD-11 + S-7/S-15 — the decision tree, the reversibility matrix, name where it falls short.
+
+## The brain (Memory — the six expertise artifacts)
+
+- [brain/MOC - bee.md](./brain/MOC%20-%20bee.md): the master hub for the brain.
+- [brain/EXPERTISE-MAP.md](./brain/EXPERTISE-MAP.md): the 12 JTBD, THE ONE INVARIANT in full, the decision tree, the "where it's WRONG" matrix (start here).
+- [brain/OPINIONS.md](./brain/OPINIONS.md): the anti-slop taste layer (O-1…O-28; disagreeing requires new evidence).
+- [brain/KNOWN-PITFALLS.md](./brain/KNOWN-PITFALLS.md): 30+ version-specific gotchas P-X1…P-Q4 (each with a Detect signal + Avoid).
+- [brain/BATTLE-TESTED-SCENARIOS.md](./brain/BATTLE-TESTED-SCENARIOS.md): 20 scenarios S-1…S-20, each with a built-in binary VERIFY (the eval source).
+- [brain/TOOL-MATRIX.md](./brain/TOOL-MATRIX.md): default-vs-alts per decision, the pins, the agent-access surface, the secrets manifest.
+- [brain/GAPS-AND-DISPUTES.md](./brain/GAPS-AND-DISPUTES.md): where the field genuinely splits + the open frontier (G-1 shared-LLM-key token-bucket). "Measure, don't assert."
+- Query it: `bee brain "<query>"` (BM25 ranked) or `bee explain <id>`.
+
+## Sub-agents (`.claude/agents/` — flat, two distinct scopes; both `model: opus`)
+
+- [idempotency-auditor](./.claude/agents/idempotency-auditor.md): the 🔴 duplicate-money class — at-least-once-as-exactly-once (P-X1), dedup-TTL sizing (P-X5/S-3), key-derivation fragility (P-X4/S-2), missing DB unique constraint (O-2), inline webhook work (P-X7/S-4). **Packaged as a reusable cross-harness sub-agent.**
+- [durable-exec-reviewer](./.claude/agents/durable-exec-reviewer.md): the execution-model class — side-effect-outside-step (P-I1/S-13.5), blocking-await-as-durable-wait (P-X2/S-8), replay-NDE (P-TE1/S-5), unbounded fan-out (P-X8/S-19), version uniformity (P-TE2/S-18).
+
+## Plugin / hooks / RSI
+
+- [.claude-plugin/manifest.json](./.claude-plugin/manifest.json): the Claude Code plugin bundle (CLI + MCP + 5 skills + hooks + 2 agents). `claude plugin install bee`.
+- [.claude/settings.json](./.claude/settings.json): hook wiring — a pin-exact commit-gate (blocks a floating `^5` on a queue/durable-exec lib, O-17/P-B1) + an exactly-once anti-slop gate (blocks a bare "exactly-once" without "effect", O-1). The dogfood: bee's harness obeys bee's law. Fires logged to `.claude/hook-fires.log`.
+- [workflows/rsi.workflow.js](./workflows/rsi.workflow.js): the deterministic $0 RSI loop (refresh-brain → re-verify-tool-matrix → run-eval-pyramid → run-frontier-experiment → propose → test-gate). `node workflows/rsi.workflow.js --deterministic`. The Claude half is gated behind `CLAUDE_CODE_OAUTH_TOKEN` (D8 — dark is expected).
+
+## The hard boundary (do NOT cross)
+
+**bee owns jobs / queues / durable workflows + worker-side flow control ONLY.** HTTP-edge rate-limiting /
+response-caching / edge-KV creds = **echo's** seam (Wave 2). bee owns only the *worker-side* token-bucket
+consulted *before* a side effect, and may *consume* echo's Redis — never owns a second cache store.
+Product-billing *logic* → penny · earning-loop *strategy* → helios (bee owns the durable rail both run ON).
+Other verticals: frontend → pixel · mobile → pebble · DB schema/migrations/RLS → acorn · auth → badge ·
+deploy/CI → rocket (bee runs on it, honors one-push-at-a-time).
+
+## ID index (the queryable vocabulary)
+
+- **O-** = opinions (`brain/OPINIONS.md`, O-1…O-28) — ALWAYS X / NEVER Y / because Z + escape hatch. e.g. **O-1** exactly-once *effects* not delivery · **O-2** DB unique constraint not in-memory dedup · **O-9** jitter by error type · **O-13** Temporal = one-way door.
+- **P-** = pitfalls (`brain/KNOWN-PITFALLS.md`, P-X1…P-Q4) — symptom → version/condition → detection → fix. e.g. **P-X5** dedup-TTL shorter than the retry window · **P-X7** inline webhook work · **P-I1** side effect outside `step.run()` · **P-B1** floating `^5` on BullMQ · **P-B3** `maxStalledCount` exempts schedulers.
+- **S-** = battle-tested scenarios (`brain/BATTLE-TESTED-SCENARIOS.md`, S-1…S-20) — golden eval tasks, each with a binary VERIFY. e.g. **S-1** the BullMQ infinite stall loop · **S-3** dedup-TTL too short · **S-4** inline webhook timeout-duplicate · **S-9** duplicate-safe worker · **S-16** the unsolved shared-LLM-key token-bucket.
+- **G-** = golden tasks (`PLAN.md` §6 / `eval/`, G1–G14) — the eval pyramid, mapped to S-IDs (CI-blocking: G1–G7 + the G10 subset).
+- **JTBD-** = jobs-to-be-done (`brain/EXPERTISE-MAP.md`, JTBD-1…JTBD-12) — the map of what bee is *doing*.

@@ -1,0 +1,69 @@
+{
+  "schema_version": "1.0",
+  "name": "bee",
+  "display_name": "bee — Background-Jobs / Queues / Workflows Engineer",
+  "description": "The Energy fleet's background-jobs / queues / durable-workflows employee. Scaffolds and audits durable-jobs layers — idempotency + retry-with-jitter + DLQ baked in, BullMQ-on-Redis by default — and reasons about the 2026 agent-era jobs problem (every multi-step agent run IS a durable workflow). Owns THE ONE INVARIANT: at-least-once transport + idempotent consumer + a DB unique-constraint dedupe; on ambiguous timeout, query state, never blind-retry. Refuses bare 'exactly-once'. Owns jobs/queues/workflows + worker-side flow control only; HTTP-edge rate-limit/cache is echo's seam.",
+  "version": "0.1.0",
+  "author": "Energy Platform",
+  "license": "MIT",
+  "repository": "https://github.com/naman10parikh/bee",
+  "keywords": ["claude-code", "background-jobs", "queues", "durable-workflows", "bullmq", "idempotency", "retry", "dlq", "webhooks", "anti-pattern", "harness", "energy"],
+  "mcp_servers": [
+    {
+      "name": "bee",
+      "description": "bee's own background-jobs tools over JSON-RPC — scaffold_jobs / enqueue / worker / audit_jobs / wire_webhook / pick_tool / check_versions / explain / search_brain. A stdio CLI-wrapper (each tool shells out to the bee CLI with --json, so the tools never drift from the gated CLI). Documented dual-mode: a hosted Streamable-HTTP variant serves the same 9 tools (see src/backend/mcp/STREAMABLE-HTTP.md).",
+      "transport": "stdio",
+      "command": "node",
+      "args": ["./src/backend/mcp/server.js"],
+      "env": { "REDIS_URL": "${REDIS_URL}" }
+    }
+  ],
+  "cli": {
+    "binary": "bee",
+    "entrypoint": "./bin/bee.js",
+    "commands": [
+      { "name": "enqueue", "description": "THE acceptance path (half 1): enqueue a job onto BullMQ-on-Redis with an idempotency key; re-enqueuing the SAME key is duplicate-safe (returns deduped:true)", "usage": "bee enqueue --queue <q> --data <json> [--id <key>] [--json]" },
+      { "name": "worker", "description": "THE acceptance path (half 2): run an idempotent worker with retry + jittered backoff + maxStalledCount + a redrive-able DLQ; each effect runs once (DB unique constraint); poison jobs dead-letter", "usage": "bee worker --queue <q> [--concurrency <n>] [--drain] [--json]" },
+      { "name": "scaffold", "description": "stand up a law-compliant jobs layer from a reference baseline (deps pinned EXACT, idempotency + retry-jitter + DLQ baked in, BullMQ Job Schedulers not legacy repeat)", "usage": "bee scaffold [--provider bullmq|inngest|qstash|temporal] [--out <dir>]" },
+      { "name": "wire-webhook", "description": "generate the RIGHT inbound webhook→queue path: verify sig on raw bytes → dedup on provider event ID (TTL ≥ provider retry window) → return 202 → idempotent async worker", "usage": "bee wire-webhook --provider <stripe|shopify|svix> [--out <dir>]" },
+      { "name": "audit", "description": "run the 30+ pitfall audit over a jobs layer: at-least-once-as-exactly-once (P-X1), dedup-TTL<retry-window (P-X5), bare-exponential (P-X6), inline webhook (P-X7), side-effect-outside-step (P-I1), floating ^5 (P-B1). Findings keyed by P-ID; exit 2 on high-severity", "usage": "bee audit <dir> [--json]" },
+      { "name": "pick-tool", "description": "the decision oracle: recommends a tool WITH the named falls-short (O-28) + the reversibility cost (Temporal = one-way door, O-13)", "usage": "bee pick-tool [--profile serverless|cloudflare|aws|http-only|scale|complex|postgres] [--json]" },
+      { "name": "check", "description": "version-drift oracle: npm view vs brain/TOOL-MATRIX.md pins (BullMQ moves weekly — O-17); flags the BullMQ stall-loop floor (<5.78.1 = the S-1 bug). Offline-safe", "usage": "bee check [--below-floor <v>] [--offline] [--json]" },
+      { "name": "token-bucket", "description": "the FRONTIER primitive (S-16/O-23/G-1): a shared Redis token-bucket all workers consult before a rate-limited call; demonstrates aggregate ≤ limit under burst. Documented as unsolved-in-vendors, never 'solved'", "usage": "bee token-bucket --key <k> --limit <rpm> [--workers <n>]" },
+      { "name": "brain", "description": "BM25 ranked search over brain/ (the Memory layer) — pitfalls/scenarios/opinions", "usage": "bee brain <query> [--json]" },
+      { "name": "explain", "description": "print a pitfall/scenario/opinion by ID (P-/S-/O-/G-/JTBD-) with its detection + fix + source", "usage": "bee explain <P-id|S-id|O-id> [--json]" },
+      { "name": "eval", "description": "run the Hamel eval pyramid L1/L2/L3 over the golden tasks (G1-G14)", "usage": "bee eval [--level 1|2|3] [--json]" }
+    ]
+  },
+  "capabilities": {
+    "tools": [
+      { "name": "scaffold_jobs", "description": "Stand up a law-compliant jobs layer from a reference baseline (deps pinned EXACT, idempotency + retry-jitter + DLQ baked in). Maps to `bee scaffold`.", "when_to_use": "When you want a clean jobs layer to build on, with idempotency + jittered retry + a redrive-able DLQ baked in and deps pinned exact." },
+      { "name": "enqueue", "description": "THE acceptance path over MCP (half 1): enqueue a job with an idempotency key; re-enqueuing the SAME key returns deduped:true. Maps to `bee enqueue`.", "when_to_use": "When you need to put a job on the queue duplicate-safely under at-least-once delivery." },
+      { "name": "worker", "description": "THE acceptance path over MCP (half 2): drain the queue once with an idempotent worker (retry + jitter + DLQ) and report {processed, deduped, deadLettered, effects, dlqDepth}. Maps to `bee worker --drain`.", "when_to_use": "When you need to process queued jobs exactly-once-in-effect and confirm poison jobs dead-letter." },
+      { "name": "audit_jobs", "description": "Run the 30+ pitfall audit over a jobs layer dir; findings keyed by P-ID. Maps to `bee audit`.", "when_to_use": "When you need to check a jobs/webhook layer for the duplicate-money, retry-storm, stall-loop, or side-effect-outside-step classes before shipping." },
+      { "name": "wire_webhook", "description": "Generate the RIGHT inbound webhook→queue path (verify-sig-on-raw → dedup-on-event-id → 202 → async). Maps to `bee wire-webhook`.", "when_to_use": "When you need to receive a Stripe/Shopify/Svix webhook without double-processing under provider retries." },
+      { "name": "pick_tool", "description": "The decision oracle: recommends a tool WITH the named falls-short + the reversibility cost. Maps to `bee pick-tool`.", "when_to_use": "When you must choose between BullMQ / Inngest / Temporal / QStash / SQS for a given workload profile." },
+      { "name": "check_versions", "description": "Version-drift oracle: flag stale pins + the BullMQ stall-loop floor (<5.78.1). Maps to `bee check`.", "when_to_use": "When you want to know whether a jobs layer's pins are current and above the known-bug floor." },
+      { "name": "explain", "description": "Print a pitfall/scenario/opinion by ID with detection + fix + source. Maps to `bee explain`.", "when_to_use": "When you have a P-/S-/O- ID and want its canonical detection + remediation." },
+      { "name": "search_brain", "description": "BM25 ranked search over brain/ — the Memory layer over MCP. Maps to `bee brain`.", "when_to_use": "When you need bee's stance on a jobs question (e.g. dedup-TTL sizing, jitter by error type, durable-exec vs a plain queue)." }
+    ]
+  },
+  "skills": [
+    "skills/idempotent-side-effects/SKILL.md",
+    "skills/retry-and-backoff/SKILL.md",
+    "skills/webhook-to-queue/SKILL.md",
+    "skills/durable-exec-safely/SKILL.md",
+    "skills/pick-the-jobs-tool/SKILL.md"
+  ],
+  "subAgents": [
+    ".claude/agents/idempotency-auditor.md",
+    ".claude/agents/durable-exec-reviewer.md"
+  ],
+  "hooks": [
+    "hooks/pin-exact-gate.sh",
+    "hooks/exactly-once-gate.sh"
+  ],
+  "settings": ".claude/settings.json",
+  "brain": "brain/MOC - bee.md",
+  "install_instructions": "1. Build the package: pnpm install && pnpm build\n2. Add this plugin to Claude Code: Settings -> Plugins -> Add local plugin -> select this directory (or `claude plugin install bee`).\n3. The bee CLI, the bee MCP tools (9), the 5 skills, the pin-exact + exactly-once grep-gate hooks (the dogfood: bee's harness obeys bee's law), and the 2 sub-agent personas (idempotency-auditor + durable-exec-reviewer) are now available."
+}

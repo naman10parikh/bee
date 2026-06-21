@@ -4,14 +4,14 @@
   "levels": ["agent"],
   "loop": {
     "cadence": "nightly",
-    "steps": ["refresh-brain", "re-verify-tool-matrix", "run-eval-pyramid", "propose", "validate", "ship"]
+    "steps": ["refresh-brain", "re-verify-tool-matrix", "run-eval-pyramid", "run-frontier-experiment", "propose", "validate", "ship"]
   },
-  "selection": "performance",
+  "selection": "performance-novelty",
   "eval": {
-    "rubric": "eval/ (Hamel L1 assertions + L2 behavior + L3 trajectory; golden tasks from brain/BATTLE-TESTED-SCENARIOS.md)",
-    "gate": "acceptance-test-green && no-regression",
+    "rubric": "eval/ — Hamel L1 structural assertions + L2 behavioral binary + L3 trajectory; 14 golden tasks (G1–G14) lifted from brain/BATTLE-TESTED-SCENARIOS.md, runnable via `bee eval` (E1); the merge-gating acceptance test is eval/acceptance.mjs (E2/E5)",
+    "gate": "acceptance-test-green && eval-pyramid-L1+L2-green && no-regression",
     "noSelfGrading": true
   },
-  "snapback": { "granularity": ["skill", "employee"], "vcs": "git" },
-  "externalIntelligence": { "enabled": true, "source": "vertical ecosystem watch (changelogs, issues, X) per brain/TOOL-MATRIX.md" }
+  "snapback": { "granularity": ["skill", "employee", "company"], "vcs": "git" },
+  "externalIntelligence": { "enabled": true, "source": "vertical ecosystem watch (BullMQ/Inngest/Trigger.dev/Temporal/QStash/Svix changelogs + GitHub issues + X) per brain/TOOL-MATRIX.md, re-verified each loop by `bee check` (D2/D5)" }
 }

@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>bee — background-jobs cockpit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Poppins:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <!-- masthead: wordmark + the pinned ONE INVARIANT + live stat strip -->
+  <header class="masthead">
+    <div class="brand">
+      <div class="wordmark">bee<span class="by">powered by Energy</span></div>
+      <div class="tagline">Runs your background work like a hive — at-least-once, never twice, never dropped, never melts the system. Your background-jobs / queues / durable-workflows engineer.</div>
+      <div class="invariant">
+        <b>THE ONE INVARIANT</b> — at-least-once transport + idempotent consumer + a dedupe store (TTL = retry window); every side effect carries a deterministic idempotency key enforced by a <b>DB unique constraint</b>; on an ambiguous timeout, <b>query state, never blind-retry</b>.
+      </div>
+    </div>
+    <div class="stat-strip" id="stat-strip">
+      <div class="stat"><div class="v accent" id="stat-evals">—</div><div class="k">evals</div></div>
+      <div class="stat"><div class="v" id="stat-invariant">—</div><div class="k">invariant</div></div>
+      <div class="stat"><div class="v accent num" id="stat-runs">—</div><div class="k">runs</div></div>
+    </div>
+  </header>
+
+  <div class="shell">
+    <!-- left rail: the 5 views (PLAN §10) -->
+    <nav class="rail">
+      <button data-view="brain" class="active"><span class="ico">◆</span> Brain browser</button>
+      <button data-view="runs"><span class="ico">≣</span> Run log</button>
+      <button data-view="queue"><span class="ico">⟳</span> Queue &amp; DLQ</button>
+      <button data-view="evals"><span class="ico">✓</span> Eval scores</button>
+      <button data-view="ask"><span class="ico">?</span> Ask the employee</button>
+      <div class="rail-foot">
+        <div><strong>Default stack:</strong> BullMQ ≥5.78.1 on Redis · Inngest 4.6 (serverless) · Temporal 1.18.1 (one-way door) · QStash (HTTP) · Svix/Hookdeck (webhooks).</div>
+        <div class="boundary"><strong>Boundary:</strong> jobs / queues / durable workflows + worker-side flow control. HTTP-edge rate-limit / cache is <strong>echo</strong>'s. Billing logic is penny's; earning strategy is helios's.</div>
+      </div>
+    </nav>
+
+    <!-- stage: one section per view -->
+    <main class="stage">
+      <!-- 1 · Brain browser -->
+      <section class="view active" id="view-brain">
+        <h2 class="serif">Brain browser</h2>
+        <p class="lede">bee's expertise — the six Wave-R artifacts, made legible. Search the BM25 index for a pitfall, scenario, or opinion; click a hit to read its detection + fix. Or read an artifact whole.</p>
+        <div class="toolbar">
+          <input type="search" id="brain-q" class="grow" placeholder="Search the brain — e.g. &quot;dedup TTL retry window&quot;, &quot;retry storm jitter&quot;, &quot;webhook 202&quot;" autocomplete="off" />
+          <button class="btn ghost" id="brain-clear">Clear</button>
+        </div>
+        <div class="brain-grid">
+          <div class="brain-files" id="brain-files"><!-- file buttons injected --></div>
+          <div id="brain-pane">
+            <div class="empty">Search above, or pick an artifact on the left to read it.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2 · Run log -->
+      <section class="view" id="view-runs">
+        <h2 class="serif">Run log</h2>
+        <p class="lede">Every <code>bee</code> invocation, append-only from <code>logs/runs.jsonl</code> — command, model, duration, cost, outcome. The employee's own observability (O-25).</p>
+        <div class="toolbar"><span class="count" id="runs-count"></span></div>
+        <div id="runs-pane"><div class="loading">loading runs</div></div>
+      </section>
+
+      <!-- 3 · Queue & DLQ -->
+      <section class="view" id="view-queue">
+        <h2 class="serif">Queue &amp; DLQ</h2>
+        <p class="lede">The one view that <em>shows</em> THE ONE INVARIANT working — the last dispatch run's lifecycle against an ephemeral Redis: a job enqueued twice with the same key collapses to <b>one effect</b>; a poison job is retried with jittered backoff, then dead-lettered to a redrive-able DLQ.</p>
+        <div id="queue-pane"><div class="loading">loading the last run</div></div>
+      </section>
+
+      <!-- 4 · Eval scores -->
+      <section class="view" id="view-evals">
+        <h2 class="serif">Eval scores</h2>
+        <p class="lede">The pyramid (Hamel L1/L2/L3) — the 14 golden tasks (G1–G14) lifted from the battle-tested scenarios, each a binary pass/fail against its built-in VERIFY (no self-grading). Green/red, never a Likert dial. The CI-blocking set is G1–G7.</p>
+        <div class="toolbar"><span class="count" id="evals-count"></span></div>
+        <div id="evals-pane"><div class="loading">loading evals</div></div>
+      </section>
+
+      <!-- 5 · Ask the employee -->
+      <section class="view" id="view-ask">
+        <h2 class="serif">Ask the employee</h2>
+        <p class="lede">Put a question to bee. <b>Search</b> runs the brain; <b>Explain</b> prints a pitfall/scenario/opinion by ID; <b>Pick a tool</b> walks the decision oracle (with the named falls-short + the reversibility cost). Read-only — bee never enqueues from the browser (Q5).</p>
+        <div class="ask-mode" id="ask-mode">
+          <button data-mode="search" class="active">Search the brain</button>
+          <button data-mode="explain">Explain an ID</button>
+          <button data-mode="pick">Pick a tool</button>
+        </div>
+        <div class="ask-bar" id="ask-bar-search">
+          <input type="text" id="ask-search-q" class="grow" placeholder="e.g. should we use Temporal for mostly-short jobs?" />
+          <button class="btn" id="ask-search-go">Ask</button>
+        </div>
+        <div class="ask-bar" id="ask-bar-explain" style="display:none">
+          <input type="text" id="ask-explain-id" class="grow" placeholder="e.g. P-X5, S-3, O-1, G1, JTBD-11" />
+          <button class="btn" id="ask-explain-go">Explain</button>
+        </div>
+        <div class="ask-bar" id="ask-bar-pick" style="display:none">
+          <select id="ask-pick-profile" class="grow">
+            <option value="serverless">serverless — a new serverless product job-layer</option>
+            <option value="scale">scale — high-volume self-managed queue</option>
+            <option value="complex">complex — long-lived multi-service workflows</option>
+            <option value="aws">aws — already on AWS</option>
+            <option value="cloudflare">cloudflare — Workers / edge</option>
+            <option value="http-only">http-only — pure-HTTP, no long-lived worker</option>
+            <option value="postgres">postgres — Postgres-only stack, no Redis</option>
+          </select>
+          <button class="btn" id="ask-pick-go">Recommend</button>
+        </div>
+        <div id="ask-answer"><div class="empty">Ask a question above.</div></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

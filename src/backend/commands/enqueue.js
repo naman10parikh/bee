@@ -24,7 +24,24 @@ export default async function run({ flags }) {
   const id = str(flags, "id");
   const json = bool(flags, "json");
 
-  const result = await enqueue({ queue, data, id, redisUrl: str(flags, "redis") });
+  /** @type {{ jobId: string, deduped: boolean, queue: string }} */
+  let result;
+  try {
+    result = await enqueue({ queue, data, id, redisUrl: str(flags, "redis") });
+  } catch (err) {
+    // Most common: Redis unreachable. Surface a clear, actionable error + non-zero
+    // exit instead of a raw stack trace or an indefinite hang (T-user QA). Note: a
+    // connection AggregateError has an EMPTY .message but a .code (ECONNREFUSED) —
+    // match on the code too, not just the message.
+    const code = /** @type {{ code?: string }} */ (err)?.code ?? "";
+    const msg = (err instanceof Error ? err.message : String(err)) || code || "connection error";
+    const redis = str(flags, "redis") || process.env.REDIS_URL || "redis://localhost:6379";
+    return fail(
+      /ECONNREFUSED|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|getaddrinfo|connect/i.test(`${code} ${msg}`)
+        ? `cannot reach Redis at ${redis} — is it running? (set REDIS_URL or --redis) [${code || msg}]`
+        : `enqueue failed: ${msg}`,
+    );
+  }
 
   emit(json, result, (r) =>
     r.deduped

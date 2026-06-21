@@ -29,21 +29,38 @@ const DLQ_SUFFIX = "-dlq";
  * Build the ioredis connection options for BullMQ. P-B10: `maxRetriesPerRequest:null`
  * so a transient Redis socket drop is retried at the connection layer, not surfaced
  * as a job failure.
+ *
+ * `oneShot` is for the CLI commands that must terminate (`bee enqueue`): a bounded
+ * `retryStrategy` + `connectTimeout` makes an unreachable Redis fail fast with a
+ * clear error instead of retrying the initial connection FOREVER (the default
+ * ioredis behavior would hang the `enqueue` process indefinitely — caught in
+ * T-user QA). This does NOT touch `maxRetriesPerRequest:null`, so the long-running
+ * worker keeps its P-B10 resilience (ride out blips, never drop a job).
+ *
  * @param {string} [redisUrl]
+ * @param {{ oneShot?: boolean }} [opts]
  * @returns {{ connection: object }}
  */
-export function connectionOpts(redisUrl) {
+export function connectionOpts(redisUrl, opts = {}) {
   const url = redisUrl || process.env.REDIS_URL || "redis://localhost:6379";
   const u = new URL(url);
-  return {
-    connection: {
-      host: u.hostname,
-      port: Number(u.port || 6379),
-      // P-B10 — connection loss is retryable, not a job failure.
-      maxRetriesPerRequest: null,
-      ...(u.password ? { password: u.password } : {}),
-    },
+  /** @type {Record<string, unknown>} */
+  const connection = {
+    host: u.hostname,
+    port: Number(u.port || 6379),
+    // P-B10 — connection loss is retryable, not a job failure.
+    maxRetriesPerRequest: null,
+    ...(u.password ? { password: u.password } : {}),
   };
+  if (opts.oneShot) {
+    // Give up after ~5 connection attempts (~1.5s total) so a one-shot CLI command
+    // surfaces ECONNREFUSED instead of hanging. Worker path never sets this.
+    connection.connectTimeout = 3000;
+    connection.maxRetriesPerRequest = 3;
+    connection.retryStrategy = (/** @type {number} */ times) =>
+      times > 5 ? null : Math.min(times * 100, 500);
+  }
+  return { connection };
 }
 
 /**
@@ -69,7 +86,12 @@ export function deriveKey(id, data) {
  */
 export async function enqueue(opts) {
   const key = deriveKey(opts.id, opts.data);
-  const q = new Queue(opts.queue, connectionOpts(opts.redisUrl));
+  // oneShot: fail fast on an unreachable Redis (don't hang the CLI forever).
+  const q = new Queue(opts.queue, connectionOpts(opts.redisUrl, { oneShot: true }));
+  // Swallow the ioredis connection 'error' event so a dead Redis doesn't dump a raw
+  // AggregateError stack to stderr — the rejected getJob/add promise below carries
+  // the same error to the command's catch, which prints one clean line (T-user QA).
+  q.on("error", () => {});
   try {
     // Detect a duplicate at enqueue time: if a job with this jobId already exists
     // (waiting/active/delayed/completed/failed), the second enqueue is a no-op.

@@ -76,7 +76,7 @@
       <!-- 4 · Eval scores -->
       <section class="view" id="view-evals">
         <h2 class="serif">Eval scores</h2>
-        <p class="lede">The pyramid (Hamel L1/L2/L3) — the 14 golden tasks (G1–G14) lifted from the battle-tested scenarios, each a binary pass/fail against its built-in VERIFY (no self-grading). Green/red, never a Likert dial. The CI-blocking set is G1–G7.</p>
+        <p class="lede">The pyramid (Hamel L1/L2/L3) — the 14 golden tasks (G1–G14) lifted from the battle-tested scenarios, each a binary pass/fail against its built-in VERIFY (no self-grading). Green/red, never a Likert dial. CI blocks on every L1+L2 task (the badged set, G1–G10 — `bee eval --level 1` &amp; `--level 2` in the acceptance job); G1–G7 are the 🔴 duplicate-money / retry-storm / stall-loop core. L3 (G12–G14) is trajectory-graded, non-blocking.</p>
         <div class="toolbar"><span class="count" id="evals-count"></span></div>
         <div id="evals-pane"><div class="loading">loading evals</div></div>
       </section>

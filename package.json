@@ -19,6 +19,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "bee": "node ./bin/bee.js",
+    "test": "node ./eval/runner.mjs",
+    "eval": "node ./eval/runner.mjs",
     "acceptance": "node ./eval/acceptance.mjs"
   },
   "engines": {

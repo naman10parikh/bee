@@ -59,6 +59,56 @@ jobs:
           node bin/bee.js eval --level 1
           node bin/bee.js eval --level 2
 
+  # RED-BLOCKING (PLAN §9, G2): Playwright E2E over the read-only cockpit (all 5 views) + the
+  # CLI acceptance flow, against the SAME ephemeral redis:7 (D15). globalSetup warms the eval +
+  # queue/DLQ caches so the Queue view shows the real dead-lettered poison job. Screenshots are
+  # uploaded as a CI artifact for the chairman.
+  cockpit-e2e:
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      REDIS_URL: redis://localhost:6379
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile || pnpm install
+
+      - name: Install Playwright Chromium (+ system deps)
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Build (tsc checkJs gate)
+        run: pnpm build
+
+      - name: Cockpit E2E (5 views + CLI acceptance flow; screenshots for the chairman)
+        run: pnpm exec playwright test
+
+      - name: Upload cockpit screenshots
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: cockpit-screenshots
+          path: content/screenshots/
+          if-no-files-found: warn
+
   # ADDITIVE, secret-gated, NON-BLOCKING: the E2B Firecracker live-boot variant
   # (PLAN §11, E4). Absent E2B_API_KEY this job is skipped — the `accept` job above
   # still gates the merge via the ephemeral-Redis path (D15/Q10). It never blocks.

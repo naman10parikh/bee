@@ -47,6 +47,7 @@ COMMANDS
   brain         BM25 search over brain/ (the expertise). <query> [--json]
   explain       Print a pitfall/scenario/opinion by ID. <P-id|S-id|O-id> [--json]
   token-bucket  The frontier primitive: a shared token-bucket workers consult. --key <k> --limit <rpm> [--workers <n>]
+  eval          Run the eval pyramid (14 golden tasks, L1/L2/L3). [--level 1|2|3] [--json]
 
 GLOBAL
   --json        Machine-readable JSON on stdout (diagnostics go to stderr)
@@ -71,6 +72,7 @@ const COMMANDS = {
   brain: () => import("../src/backend/commands/brain.js"),
   explain: () => import("../src/backend/commands/explain.js"),
   "token-bucket": () => import("../src/backend/commands/token-bucket.js"),
+  eval: () => import("../src/backend/commands/eval.js"),
 };
 
 async function main() {

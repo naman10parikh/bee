@@ -1,20 +1,62 @@
-name: bee RSI
-# CP123: dispatch-only until the RSI engine (workflows/rsi.workflow.js + eval gate) is built in Wave B/E.
-# The Claude half additionally needs CLAUDE_CODE_OAUTH_TOKEN (chairman checklist, D8). Guarded = always green.
+name: bee RSI (deterministic, $0)
+
+# bee's durable RSI schedule (Dispatch / routine half — PLAN §3.8, item D3).
+#
+# THE #1 FLEET-GAP LESSON (CP117 burned on "written ≠ enabled"): the trigger below is
+# ENABLED, not commented. `workflow_dispatch` runs it on demand from the Actions tab; the
+# daily `schedule` runs the deterministic loop unattended. bee owns DURABLE scheduling
+# (JTBD-8) — durable GH Actions, NEVER the ephemeral CronCreate as the durable path
+# (the Monitor-over-polling discipline, O-21: a clock-based routine is what cron is FOR;
+# event-shaped waits inside bee use the Monitor tool).
+#
+# It runs the DETERMINISTIC HALF only ($0 / tokenless, D8/D14): refresh-brain →
+# re-verify-tool-matrix (`bee check` — high hit-rate because BullMQ ships multiple
+# patches/week, O-17) → run-eval-pyramid → run-frontier-experiment (the token-bucket
+# sim) → propose → test-gate. The Claude half stays dark until CLAUDE_CODE_OAUTH_TOKEN
+# is set (a CHAIRMAN-CHECKLIST item) — by design, not a miss.
+
 on:
   workflow_dispatch:
+  schedule:
+    # Daily at 09:17 UTC — a deterministic, $0 drift/eval sweep (a durable, clock-based
+    # routine — exactly what cron is for; bee never uses the ephemeral CronCreate here).
+    - cron: "17 9 * * *"
 
 permissions:
   contents: read
 
 jobs:
-  rsi:
+  deterministic-rsi:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Engine guard
-        run: |
-          if [ ! -f workflows/rsi.workflow.js ]; then
-            echo "RSI engine not built yet (CP123 cluster E) — exiting green."; exit 0
-          fi
-          echo "engine present — deterministic half would run here (wired in cluster E)"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile || pnpm install
+
+      - name: Build (tsc checkJs gate)
+        run: pnpm build
+
+      - name: Run the deterministic RSI loop ($0, tokenless)
+        # The Claude half is intentionally dark here (CLAUDE_CODE_OAUTH_TOKEN unset, D8).
+        # This step shells the local bee CLI + `npm view`; it never calls the model.
+        run: node workflows/rsi.workflow.js --deterministic --json | tee rsi-report.json
+
+      - name: Upload the RSI run report (drift proposals + eval gate)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bee-rsi-report
+          path: |
+            rsi-report.json
+            logs/rsi/proposal-latest.json
+          if-no-files-found: ignore

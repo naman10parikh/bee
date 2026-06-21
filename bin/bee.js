@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { parseArgs } from "../src/backend/cli/args.js";
 import { fail } from "../src/backend/cli/output.js";
+import { startRun } from "../src/backend/obs/runlog.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -76,22 +77,46 @@ async function main() {
   const argv = process.argv.slice(2);
   const { command, positionals, flags } = parseArgs(argv);
 
-  if (flags.version || flags.v || command === "version" || command === "-v") {
-    process.stdout.write(version() + "\n");
-    return;
-  }
-  if (!command || flags.help || flags.h || command === "help" || command === "-h") {
-    process.stdout.write(HELP);
-    return;
-  }
+  // E3 observability: open the run timer for EVERY bee invocation and append one
+  // append-only row to logs/runs.jsonl. We write the row on a `process.on("exit")`
+  // hook (a single write, fired exactly once) so commands that call `process.exit()`
+  // — fail(), the long-lived worker on SIGINT — are still recorded. Stdout stays
+  // clean (the row goes to a file, never stdout), so the --json contract is intact.
+  const run = startRun({ command });
+  let outcome = "ok";
+  let logged = false;
+  const writeRow = () => {
+    if (logged) return;
+    logged = true;
+    run.end({ outcome });
+  };
+  process.on("exit", writeRow);
 
-  const loader = COMMANDS[command];
-  if (!loader) {
-    fail(`unknown command: ${command}\nRun \`bee --help\` for the command list.`, 127);
-  }
+  try {
+    if (flags.version || flags.v || command === "version" || command === "-v") {
+      process.stdout.write(version() + "\n");
+      return;
+    }
+    if (!command || flags.help || flags.h || command === "help" || command === "-h") {
+      process.stdout.write(HELP);
+      return;
+    }
 
-  const mod = await loader();
-  await mod.default({ positionals, flags });
+    const loader = COMMANDS[command];
+    if (!loader) {
+      outcome = "error";
+      fail(`unknown command: ${command}\nRun \`bee --help\` for the command list.`, 127);
+    }
+
+    const mod = await loader();
+    await mod.default({ positionals, flags });
+  } catch (err) {
+    outcome = "error";
+    throw err;
+  } finally {
+    // Normal-completion path: write now (the exit hook is a backstop for exit()).
+    writeRow();
+  }
 }
 
 main().catch((err) => {

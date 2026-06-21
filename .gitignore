@@ -31,4 +31,7 @@ vault/Untitled*.base
 *.sqlite-wal
 *.sqlite-shm
 
+# bee generated run output — observability telemetry (E3) + RSI proposals (D2)
+logs/
+
 .env

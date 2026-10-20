@@ -43,6 +43,25 @@ Every command is non-interactive and takes `--json` on data commands. `bee --hel
 `scaffold_jobs` · `enqueue` · `worker` · `audit_jobs` · `wire_webhook` · `pick_tool` · `check_versions` ·
 `explain` · `search_brain`. (Wraps the CLI; stdio local + a documented Streamable-HTTP path.)
 
+Start it with `npx -y -p github:naman10parikh/bee bee-mcp` (bin `bee-mcp`; in a clone,
+`node src/backend/mcp/server.js`). `bee-mcp --list` prints the tool names without the protocol. The
+`enqueue` and `worker` tools need Redis and read `REDIS_URL` (default `redis://localhost:6379`); the other
+seven run without it (`check_versions` calls `npm view` unless it is offline).
+
+## Run it
+
+- **From GitHub, no clone:** `npx -y -p github:naman10parikh/bee bee --help`.
+- **In a clone:** `pnpm install`, then `node bin/bee.js <command>`. The code is plain ESM JavaScript, so
+  `pnpm build` is a type check with no build output. `pnpm test` (the same as `pnpm eval`) runs the 14 golden
+  tasks; `pnpm acceptance` runs the enqueue and worker merge gate against Redis.
+- **MCP config:** the root `.mcp.json` starts bee's own server from GitHub, plus context7. `.mcp.dev.json`
+  holds the local server and the github, memory and obsidian servers, which need a token or a relative
+  path: load them with `claude --mcp-config .mcp.dev.json`.
+- **Documented, not built:** the hosted Streamable-HTTP transport for the MCP server
+  (`src/backend/mcp/STREAMABLE-HTTP.md`) and the LLM half of the improvement loop, which stays off until
+  `CLAUDE_CODE_OAUTH_TOKEN` is set. Inngest, QStash and Temporal are scaffold templates; only BullMQ on
+  Redis is wired end to end.
+
 ## The boundary (hard — what bee does NOT own)
 
 bee owns **jobs / queues / durable workflows + worker-side flow control**; **cron is a feature, not the whole
@@ -95,4 +114,4 @@ clause does not bind bee.
 ---
 
 *Operating rules: `CLAUDE.md` + `.claude/rules/`. Identity: `identity/SOUL.md` + `identity/BRAND.md`.
-Bootstrap memory: `MEMORY.md`. The grading authority for this harness is `HARNESS-OVERRIDES.md`.*
+Bootstrap memory: `MEMORY.md`. Corrections become rules in `memory/LEARNINGS.md`.*

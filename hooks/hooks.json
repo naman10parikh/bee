@@ -1,0 +1,20 @@
+{
+  "description": "bee's two gates: block a floating ^ or ~ range on a queue or durable-execution library in package.json, and block a bare \"exactly-once\" (without the word \"effect\") in a Markdown doc.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/pin-exact-gate.sh\""
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/exactly-once-gate.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}

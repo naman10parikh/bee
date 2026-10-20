@@ -4,7 +4,8 @@
   "description": "bee — the Energy fleet's background-jobs/queues/durable-workflows employee. At-least-once + idempotent + DB-unique-constraint dedupe.",
   "type": "module",
   "bin": {
-    "bee": "./bin/bee.js"
+    "bee": "./bin/bee.js",
+    "bee-mcp": "./src/backend/mcp/server.js"
   },
   "main": "./src/backend/index.js",
   "files": [

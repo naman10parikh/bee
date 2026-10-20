@@ -29,6 +29,7 @@ const BEE_CLI = join(__dirname, "..", "..", "..", "bin", "bee.js");
 import { TOOLS, findTool, listTools } from "./tools.js";
 
 const PROTOCOL_VERSION = "2024-11-05"; // the MCP stdio protocol revision bee speaks
+const SERVER_VERSION = "0.1.0";
 
 /** Write a single JSON-RPC message as one stdout line. @param {object} msg */
 function send(msg) {
@@ -144,7 +145,7 @@ async function dispatch(req) {
         result: {
           protocolVersion: PROTOCOL_VERSION,
           capabilities: { tools: { listChanged: false } },
-          serverInfo: { name: "bee", version: "0.1.0" },
+          serverInfo: { name: "bee", version: SERVER_VERSION },
           instructions:
             "bee — background-jobs/queues/durable-workflows employee. THE ONE INVARIANT: at-least-once transport + idempotent consumer + DB-unique-constraint dedupe; on ambiguous timeout, query state, never blind-retry. Never bare 'exactly-once' — exactly-once *effect*.",
         },
@@ -166,6 +167,21 @@ async function dispatch(req) {
     default:
       send(rpcError(id, -32601, `method not found: ${method}`));
   }
+}
+
+// `--help` and `--version` answer and exit before the stdio loop starts (the one-step install
+// check runs `npx -y -p github:naman10parikh/bee bee-mcp --help`).
+if (process.argv.includes("--help") || process.argv.includes("-h")) {
+  process.stdout.write(
+    "bee-mcp: bee's MCP server over stdio (newline-delimited JSON-RPC, 9 tools that wrap the bee CLI).\n" +
+      "Register it in an MCP client. `--list` prints the tool names and `--version` the version.\n" +
+      "The enqueue and worker tools read REDIS_URL (default redis://localhost:6379).\n",
+  );
+  process.exit(0);
+}
+if (process.argv.includes("--version")) {
+  process.stdout.write(`${SERVER_VERSION}\n`);
+  process.exit(0);
 }
 
 // ── stdio loop: one JSON-RPC object per line ────────────────────────────────

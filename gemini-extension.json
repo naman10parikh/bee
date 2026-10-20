@@ -1,0 +1,17 @@
+{
+  "name": "bee",
+  "version": "0.1.0",
+  "description": "Background jobs and webhooks that are safe to run twice: every side effect happens once.",
+  "contextFileName": "GEMINI.md",
+  "mcpServers": {
+    "bee": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "-p",
+        "github:naman10parikh/bee",
+        "bee-mcp"
+      ]
+    }
+  }
+}

@@ -30,4 +30,4 @@
 1. Read the last failing eval/audit finding (the scenario VERIFY line is the gate — `noSelfGrading`).
 2. Map the symptom to a pitfall: grep `brain/KNOWN-PITFALLS.md` for the error string (the **Detect** line is the index).
 3. Apply the **Avoid** fix; re-run the gate `pass^k` (k≥3).
-4. If still blocked: record honest 🔄 in the relevant TODO with the reason; never fake a green.
+4. If still blocked: record an honest 🔄 on the open work item, with the reason; never fake a green.

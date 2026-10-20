@@ -1,0 +1,14 @@
+{
+  "name": "bee",
+  "owner": {
+    "name": "Naman Parikh",
+    "url": "https://github.com/naman10parikh"
+  },
+  "plugins": [
+    {
+      "name": "bee",
+      "source": "./",
+      "description": "Background jobs and webhooks that are safe to run twice: every side effect happens once."
+    }
+  ]
+}

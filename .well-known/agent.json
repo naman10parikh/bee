@@ -3,6 +3,7 @@
   "name": "bee",
   "description": "The Energy fleet's background-jobs / queues / durable-workflows domain-expert employee. Scaffolds and audits durable-jobs layers — idempotency + retry-with-jitter + DLQ baked in, BullMQ-on-Redis by default — and reasons about the 2026 agent-era jobs problem (every multi-step agent run IS a durable workflow). Owns THE ONE INVARIANT: at-least-once transport + idempotent consumer + a DB unique-constraint dedupe; on ambiguous timeout, query state, never blind-retry. Refuses bare 'exactly-once'. Owns jobs/queues/workflows + worker-side flow control only; HTTP-edge rate-limit/cache is echo's seam. Powered by Energy.",
   "version": "0.1.0",
+  "url": "https://github.com/naman10parikh/bee",
   "provider": {
     "organization": "Energy",
     "url": "https://github.com/naman10parikh/bee"

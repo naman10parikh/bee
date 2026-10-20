@@ -24,16 +24,16 @@ const RUNS_LOG = join(REPO_ROOT, "logs", "runs.jsonl");
 
 /**
  * The model bee runs under. Per D14 the budget is disabled as a constraint and the
- * fleet always runs Opus 4.8 max — but the telemetry records the ACTUAL env-pinned
+ * fleet always runs the latest flagship Opus at max effort — but the telemetry records the ACTUAL env-pinned
  * model (ANTHROPIC_MODEL / CLAUDE_CODE_SUBAGENT_MODEL) when present, falling back to
- * the D14 default so the row is never empty (the verify line asserts `e.model`).
+ * "default", Claude Code's own model, so the row is never empty (the verify line asserts `e.model`).
  * @returns {string}
  */
 export function activeModel() {
   return (
     process.env.ANTHROPIC_MODEL ||
     process.env.CLAUDE_CODE_SUBAGENT_MODEL ||
-    "claude-opus-4-8[1m]"
+    "default"
   );
 }
 

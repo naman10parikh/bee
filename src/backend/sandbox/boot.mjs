@@ -47,7 +47,7 @@ function loadDotEnv() {
 function logRow(row) {
   try {
     mkdirSync(dirname(RUNS_LOG), { recursive: true });
-    appendFileSync(RUNS_LOG, JSON.stringify({ ts: Date.now(), command: "sandbox-boot", model: process.env.ANTHROPIC_MODEL || "claude-opus-4-8[1m]", ...row }) + "\n");
+    appendFileSync(RUNS_LOG, JSON.stringify({ ts: Date.now(), command: "sandbox-boot", model: process.env.ANTHROPIC_MODEL || "default", ...row }) + "\n");
   } catch {
     // best-effort telemetry
   }

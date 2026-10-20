@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: If you use this software, please cite it as below.
+title: "Bee: Background jobs and webhooks that are safe to run twice: every side effect happens once."
+type: software
+authors:
+  - family-names: Parikh
+    given-names: Naman
+repository-code: "https://github.com/naman10parikh/bee"
+license: MIT
+version: "0.1.0"
+abstract: "Background jobs and webhooks that are safe to run twice: every side effect happens once."
+keywords: ["agent-native", "background-jobs", "idempotency", "webhooks"]

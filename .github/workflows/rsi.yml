@@ -52,6 +52,7 @@ jobs:
       - name: Run the deterministic RSI loop ($0, tokenless)
         # The Claude half is intentionally dark here (CLAUDE_CODE_OAUTH_TOKEN unset, D8).
         # This step shells the local bee CLI + `npm view`; it never calls the model.
+        shell: bash # pipefail: a failing engine fails the step, not tee
         run: node workflows/rsi.workflow.js --deterministic --json | tee rsi-report.json
 
       - name: Upload the RSI run report (drift proposals + eval gate)

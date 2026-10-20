@@ -97,7 +97,7 @@ Then update `.mcp.json`:
 Read the current `.mcp.json`:
 
 ```bash
-cat ~/energy/.mcp.json
+cat .mcp.json
 ```
 
 Add the new server entry. Preserve all existing entries.

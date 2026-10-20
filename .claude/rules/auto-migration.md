@@ -29,8 +29,8 @@ When auto-switch.sh is NOT running:
 3. Stop hook uses RemoteTrigger to schedule an immediate remote session:
    ```
    RemoteTrigger(action: "create", body: {
-     prompt: "Read ~/energy/.claude/handoff.md and continue work.",
-     project_path: "~/energy"
+     prompt: "Read .claude/handoff.md and continue work.",
+     project_path: "$CLAUDE_PROJECT_DIR"
    })
    ```
 4. Claude writes to terminal: "Context migrating. Remote session spawned. Check Claude dashboard."

@@ -42,7 +42,7 @@ bee is built (CP123) in dependency-ordered clusters; the board is `MASTER-TODOS.
 
 ## Model routing (D14 — budget DISABLED as a constraint)
 
-The weekly-budget system is **off** as a constraint — it does not pull real usage data. **Always run Opus 4.8 (`claude-opus-4-8[1m]`), 1M context, MAX effort. Never downshift, never pause for "budget."** Ignore all 75/90/95 warnings and `budget-manager` tiers (treat as a no-op); `scripts/budget-manager.sh status` is confirm-only. The only real throttle is a hard 5-hour rate-limit `429` → pause-and-resume, never model-downshift. **Any sub-agent bee spawns passes an explicit `model` (never a bare default)** — workflow builders that omit `model` inherit the session model and die on the wrong limit (the CP123 root-cause).
+The weekly-budget system is **off** as a constraint — it does not pull real usage data. **Always run the latest flagship Opus (Claude Code's default, or the alias `opus`; never a model ID), 1M context, MAX effort. Never downshift, never pause for "budget."** Ignore all 75/90/95 warnings and `budget-manager` tiers (treat as a no-op); `scripts/budget-manager.sh status` is confirm-only. The only real throttle is a hard 5-hour rate-limit `429` → pause-and-resume, never model-downshift. **Any sub-agent bee spawns passes an explicit `model` (never a bare default)** — workflow builders that omit `model` inherit the session model and die on the wrong limit (the CP123 root-cause).
 
 ## Operating model
 

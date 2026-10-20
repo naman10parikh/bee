@@ -108,7 +108,7 @@ Without that key it prints a skipped note and exits 0.
 `bee check` asks the npm registry for the latest version of each pinned package.
 The sandbox run starts Redis and a BullMQ worker inside an E2B machine.
 The cockpit in [web/server.mjs](../web/server.mjs) serves read-only pages on port 7777 by default.
-It sets no host, so it listens on all network interfaces.
+It listens on 127.0.0.1 only, so other machines on the network cannot reach it.
 
 **How does it improve itself?**
 [dsip.json](../dsip.json) declares the `agent` level, with a nightly loop and no self-grading.

@@ -145,3 +145,38 @@ test("CLI acceptance flow runs clean against the ephemeral Redis", async () => {
   expect(code).toBe(0);
   expect(out).toMatch(/PASS|pass/);
 });
+
+// The cockpit is for this machine only: it listens on 127.0.0.1, never on every network interface.
+// Boots its own server on a spare port, reads its log line, then dials it from a non-loopback address.
+import { spawn } from "node:child_process";
+import { connect } from "node:net";
+import { networkInterfaces } from "node:os";
+
+test("cockpit listens on 127.0.0.1 only", async () => {
+  const port = 47000 + Math.floor(Math.random() * 1000);
+  const child = spawn(process.execPath, [join(REPO, "web", "server.mjs")], {
+    env: { ...process.env, BEE_WEB_PORT: String(port) },
+  });
+  try {
+    const line = await new Promise((resolve, reject) => {
+      child.stdout.once("data", (d) => resolve(String(d)));
+      child.once("exit", (c) => reject(new Error(`cockpit exited early (${c})`)));
+    });
+    expect(line).toContain(`http://127.0.0.1:${port}`);
+    const lan = Object.values(networkInterfaces())
+      .flat()
+      .find((a) => a && a.family === "IPv4" && !a.internal);
+    if (lan) {
+      const reached = await new Promise((resolve) => {
+        const s = connect({ host: lan.address, port }, () => {
+          s.destroy();
+          resolve(true);
+        });
+        s.once("error", () => resolve(false));
+      });
+      expect(reached, `the cockpit must not answer on ${lan.address}`).toBe(false);
+    }
+  } finally {
+    child.kill();
+  }
+});

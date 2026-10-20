@@ -15,7 +15,7 @@
 // bee's CLI is plain JS (`node bin/bee.js`) — no `dist/` build step (tsconfig is noEmit/
 // typecheck-only), so unlike turbo this server shells straight at bin/bee.js.
 //
-// Run:  bash scripts/serve.sh            -> http://localhost:7777
+// Run:  bash scripts/serve.sh            -> http://127.0.0.1:7777 (listens on 127.0.0.1 only)
 // Env:  BEE_WEB_PORT (default 7777)
 //
 // Endpoints (all GET — there are NO mutating routes, Q5):
@@ -259,6 +259,7 @@ const server = createServer(async (req, res) => {
   res.end("not found");
 });
 
-server.listen(PORT, () => {
-  process.stdout.write(`bee cockpit on http://localhost:${PORT}\n`);
+// 127.0.0.1 only: the cockpit is for this machine, never for the rest of the network.
+server.listen(PORT, "127.0.0.1", () => {
+  process.stdout.write(`bee cockpit on http://127.0.0.1:${PORT}\n`);
 });

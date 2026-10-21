@@ -30,7 +30,7 @@ Both exit 2 to block and log every fire to `.claude/hook-fires.log`. The plugin 
 
 ## Harness components & build order (clusters A→G)
 
-bee is built (CP123) in dependency-ordered clusters; the board is `MASTER-TODOS.md`, the contract is `PLAN.md`, the grading authority is `HARNESS-OVERRIDES.md`.
+bee is built (CP123) in dependency-ordered clusters; the board, the contract and the grading notes stay with the maintainer.
 
 - **A — brain + identity** (this file, SOUL, BRAND, MEMORY bootstrap, model-routing confirm) — serial, first.
 - **B — skills ∥ CLI ∥ hooks** (`bee` binary + the acceptance path `enqueue`/`worker`, scaffold/wire-webhook/audit/pick-tool/check/brain, 5 skills, the pin-exact hook).
